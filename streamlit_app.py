@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+from PIL import Image
 
 # -----------------------------
 # CONFIG
@@ -88,7 +89,13 @@ if menu == "🏫 Mark Attendance":
     frame_placeholder = st.empty()
     
     if run:
-        cap = cv2.VideoCapture(0)
+        img_file = st.camera_input("Capture face")
+
+	if img_file:
+    		img = Image.open(img_file)
+    		img = np.array(img)
+    		# pass img to your model
+
         while run:
             ret, frame = cap.read()
             if not ret:
