@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import json
 from datetime import datetime
-import tensorflow as tf
 from tensorflow.keras.models import load_model
 from PIL import Image
 
@@ -14,11 +13,9 @@ from PIL import Image
 # -----------------------------
 IMG_SIZE = 224
 CONF_THRESHOLD = 0.5
-IMAGE_PATH = "What-is-Facial-Recognition.webp"
 
 GREEN = (0, 200, 0)
 RED = (0, 0, 255)
-WHITE = (255, 255, 255)
 
 st.set_page_config(
     page_title="Face Attendance System",
@@ -27,7 +24,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# LOAD MODEL & LABELS (FIXED FOR DOCKER/KERAS 3)
+# LOAD MODEL & LABELS
 # -----------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, "face_recognition_mobilenetv2.h5")
@@ -35,8 +32,6 @@ labels_path = os.path.join(BASE_DIR, "class_indices.json")
 
 @st.cache_resource
 def get_model():
-    # Adding compile=False often bypasses the 'pop' error in Keras 3 
-    # when loading legacy H5 files.
     return load_model(model_path, compile=False)
 
 try:
@@ -66,7 +61,7 @@ st.markdown(
 )
 
 # -----------------------------
-# SIDEBAR & ATTENDANCE LOGIC
+# SIDEBAR
 # -----------------------------
 menu = st.sidebar.radio("Choose Section", ["🏫 Mark Attendance", "📥 Download Attendance"])
 
@@ -77,7 +72,7 @@ def mark_attendance(name):
     now = datetime.now()
     date = now.strftime("%Y-%m-%d")
     time = now.strftime("%H:%M:%S")
-    
+
     if not any(row["Name"] == name and row["Date"] == date for row in st.session_state.attendance):
         st.session_state.attendance.append({"Name": name, "Date": date, "Time": time})
 
@@ -85,26 +80,20 @@ def mark_attendance(name):
 # MARK ATTENDANCE
 # -----------------------------
 if menu == "🏫 Mark Attendance":
-    run = st.checkbox('Start Camera')
-    frame_placeholder = st.empty()
-    
-    if run:
-        img_file = st.camera_input("Capture face")
+    st.info("Use your browser camera to capture an image.")
 
-	if img_file:
-    		img = Image.open(img_file)
-    		img = np.array(img)
-    		# pass img to your model
+    img_file = st.camera_input("Capture face")
 
-        while run:
-            ret, frame = cap.read()
-            if not ret:
-                st.error("Camera not found or disconnected.")
-                break
+    if img_file is not None:
+        image = Image.open(img_file).convert("RGB")
+        frame = np.array(image)
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
+        if len(faces) == 0:
+            st.warning("No face detected.")
+        else:
             for (x, y, w, h) in faces:
                 face = frame[y:y+h, x:x+w]
                 face = cv2.resize(face, (IMG_SIZE, IMG_SIZE))
@@ -125,12 +114,10 @@ if menu == "🏫 Mark Attendance":
                     label = f"UNKNOWN {confidence:.2f}"
 
                 cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                cv2.putText(frame, label, (x, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_placeholder.image(frame_rgb, channels="RGB")
-        
-        cap.release()
+            st.image(frame, channels="RGB", caption="Processed Image")
 
 # -----------------------------
 # DOWNLOAD ATTENDANCE
@@ -142,3 +129,4 @@ elif menu == "📥 Download Attendance":
         df = pd.DataFrame(st.session_state.attendance)
         st.dataframe(df, use_container_width=True)
         st.download_button("⬇️ Download CSV", df.to_csv(index=False), "attendance.csv")
+
